@@ -1109,6 +1109,39 @@ namespace Il2cpp
         return imagesCache;
     }
 
+    Il2CppObject* NewInt32(int32_t value) {
+        Il2CppClass* klass = GetCorlib()->getClass("System.Int32");
+        if (!klass) return nullptr;
+        return il2cpp_value_box(klass, &value);
+    }
+
+    Il2CppObject* NewSingle(float value) {
+        Il2CppClass* klass = GetCorlib()->getClass("System.Single");
+        if (!klass) return nullptr;
+        return il2cpp_value_box(klass, &value);
+    }
+
+    Il2CppObject* NewBoolean(bool value) {
+        Il2CppClass* klass = GetCorlib()->getClass("System.Boolean");
+        if (!klass) return nullptr;
+        int32_t val = value ? 1 : 0;
+        return il2cpp_value_box(klass, &val);
+    }
+
+    Il2CppObject* NewVector2(float x, float y) {
+        Il2CppClass* klass = FindClass("UnityEngine.Vector2");
+        if (!klass) {
+            LOGE("Failed to find UnityEngine.Vector2 class");
+            return nullptr;
+        }
+
+        struct Vector2 {
+            float x, y;
+        } vec{x, y};
+
+        return il2cpp_value_box(klass, &vec);
+    }
+
 #if __DEBUG__
     struct Data
     {

@@ -82,11 +82,11 @@ target_link_libraries(MyLibName
         )
 
 # Add a custom command to copy compile_commands.json after the build is complete
-add_custom_command(
-  TARGET MyLibName
-  POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_BINARY_DIR}/compile_commands.json"
-    "${CMAKE_SOURCE_DIR}/compile_commands.json"
-  COMMENT "Copying compile_commands.json to source directory"
-)
+#add_custom_command(
+#  TARGET MyLibName
+#  POST_BUILD
+#  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#    "${CMAKE_BINARY_DIR}/compile_commands.json"
+#    "${CMAKE_SOURCE_DIR}/compile_commands.json"
+#  COMMENT "Copying compile_commands.json to source directory"
+#)

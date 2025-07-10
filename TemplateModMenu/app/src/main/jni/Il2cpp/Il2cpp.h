@@ -86,6 +86,12 @@ namespace Il2cpp
     const char *GetTypeName(Il2CppType *type);
     Il2CppObject *GetTypeObject(Il2CppType *type);
 
+    // boxed types
+    Il2CppObject *NewInt32(int32_t value);
+    Il2CppObject *NewSingle(float value);
+    Il2CppObject *NewBoolean(bool value);
+    Il2CppObject *NewVector2(float x, float y);
+
     // string
     const char *GetChars(Il2CppString *str); // returns wide char
     Il2CppString *NewString(const char *str);

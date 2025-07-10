@@ -18,7 +18,6 @@ Il2CppImage *XDSDK = nullptr;
 Il2CppImage *runTime = nullptr;
 
 //Il2CppImage *unityCore = nullptr;
-//Il2CppImage *msCore = nullptr;
 
 // exmaple dump.cs
 // class Game.Sample.Class //Assembly-CSharp
@@ -44,34 +43,89 @@ Il2CppImage *runTime = nullptr;
 
 bool enterMainScene = false;
 bool forceUnpause = false;
-bool enableSheep = false;
-bool charSelect = false;
 bool returnToFoyer = false;
-bool showLoginScreen = false;
-int camScale = 1;
+bool charSelect = false;
+int32_t camScale = 1;
 bool setCamScale = false;
+bool loadSave = false;
+bool saveGame = false;
+bool quickRestart = false;
+
+bool enableSheep = false;
+bool enableAll = false;
+bool enableCultist = false;
+
+bool showLoginScreen = false;
 bool enableEnglish = true;
 int runSeed = -1;
 bool getSeed = false;
 bool setSeed = false;
 int seedValue = 1;
-bool enableCultist = false;
-bool loadSave = false;
-bool enableAll = false;
-bool initAmmonomicon = true;
-bool updateUrl = false;
-bool saveGame = false;
-bool precash = false;
-Il2CppObject* proOfflineCont = nullptr;
 
+bool initAmmonomicon = true;
+
+bool updateUrl = false;
+
+bool spawnCurrency = false;
+int32_t currencyAmountToDrop = 0;
+int32_t isMetaCurrency = 0;
+
+bool currencyPickupModded = false;
+bool addBlanks = false;
+
+Il2CppObject *proOfflineCont = nullptr;
+Il2CppObject *playerCtrlClass = nullptr;
+Il2CppObject *cameraCtrlClass = nullptr;
+//Il2CppObject *healthHaverClass = nullptr; // TODO: GET THE PLAYER INSTANCE
+//Il2CppObject *playerConsClass = nullptr;
+
+// HealthHaver (add health and shield controls (add/remove health/shields)
+// HeartDispenser (change amount of stored hearts)
+// PlayerConsumables (directly set shell amount - set_Currency) (JUST CHANGES THE TEXT)
+// CurrencyPickup (change the value of currency pickups (regular/meta) ✅, Pickup(PlayerController player)
+// LootEngine (spawn health/currency)
+// PlayerController (set blank amount ✅, teleport to point)
+// CameraController (for LootEngine player pos vector)
+// Gun (add ammo, set to infinite ammo mode, bullet effects, etc.) TODO: TRY TO MAKE A DROPDOWN LIST WITH GUN NAMES (gun name <-> instance pointer)
+// Add bossrush elevator controller (to disable bossrush payment)
+
+struct Vector2
+{
+    float x, y;
+};
+
+struct Vector3
+{
+    float x, y, z;
+};
+
+struct Int32 { // TODO
+    int32_t m_value;
+};
+
+enum ChallengeModeType
+{
+    None,
+    ChallengeMode,
+    ChallengeMegaMode,
+    GunslingKingTemporary
+};
+
+struct QuickRestartOptions
+{
+    bool GunGame;
+    ChallengeModeType ChallengeMode;
+    bool BossRush;
+    int NumMetas; // no idea what this is
+};
 
 void GameManager_Update(Il2CppObject *instance) {
-    LOGD("update Called: %f, %f, %f");
+    //LOGD("Update called");
 
-    if(instance!=nullptr) {
-        if(enterMainScene) {
+    if (instance != nullptr) {
+        if (enterMainScene) {
             instance->invoke_method<void>("EnterMainScene", 1);
-            enterMainScene = false;  // because we only want to call the method once
+            enterMainScene = false; // because we only want to call the method once
         }
         if (forceUnpause) {
             instance->invoke_method<void>("ForceUnpause");
@@ -95,13 +149,10 @@ void GameManager_Update(Il2CppObject *instance) {
             LOGD("Camera Scale is", camScale);
             if (camScale == 1) {
                 gmClass->invoke_static_method<void>("SetCameraScale", 1);
-
             } else if (camScale == 2) {
                 gmClass->invoke_static_method<void>("SetCameraScale", 2);
-
             } else {
                 gmClass->invoke_static_method<void>("SetCameraScale", 3);
-
             }
             setCamScale = false;
         }
@@ -111,7 +162,7 @@ void GameManager_Update(Il2CppObject *instance) {
                 auto doubleStrategy = proOfflineCont->invoke_method<Il2CppObject*>("CreateLoginOfflineContinueStrategy", 2);
                 doubleStrategy->invoke_method<void>("TryContinue");
             } else {
-                LOGD("procedureOfflineContinue! is null");
+                LOGE("procedureOfflineContinue is null!");
             }
             enableCultist = false;
         }
@@ -121,17 +172,27 @@ void GameManager_Update(Il2CppObject *instance) {
                 auto singleStrategy = proOfflineCont->invoke_method<Il2CppObject*>("CreateLoginOfflineContinueStrategy", 1);
                 singleStrategy->invoke_method<void>("TryContinue");
             } else {
-                LOGD("procedureOfflineContinue! is null");
+                LOGE("procedureOfflineContinue is null!");
             }
             loadSave = false;
         }
-        
         if (saveGame) {
             LOGD("Saved Game!");
             instance->invoke_method<void>("SaveMidGameData");
             saveGame = false;
         }
-
+        if (quickRestart) {
+            LOGD("Quick-restarting!");
+            ChallengeModeType challengeModeType = None;
+            QuickRestartOptions quickResOpt = {
+                    false,
+                    challengeModeType,
+                    false,
+                    0
+            };
+            instance->invoke_method<void>("QuickRestart", quickResOpt);
+            quickRestart = false;
+        }
         if (enableAll) {
             if (proOfflineCont != nullptr) {
                 LOGD("Found procedureOfflineContinue!");
@@ -139,10 +200,51 @@ void GameManager_Update(Il2CppObject *instance) {
                 doubleStrategy->invoke_method<void>("HandleOfflineContinue");
 
             } else {
-                LOGD("procedureOfflineContinue! is null");
+                LOGD("procedureOfflineContinue is null!");
             }
             enableAll = false;
         }
+        if (spawnCurrency) {
+            if (cameraCtrlClass != nullptr) {
+                auto playerPos = cameraCtrlClass->invoke_method<Vector2>("GetPlayerPosition", playerCtrlClass);
+                //auto *spawnPos = Il2cpp::NewVector2(40.0f, 40.0f);
+
+                if (playerPos.x != NULL && playerPos.y != NULL) {
+                    LOGD("Spawning currency at x=%f, y=%f: amount: %d, isMeta: %d",
+                         playerPos.x,
+                         playerPos.y,
+                         currencyAmountToDrop,
+                         isMetaCurrency);
+
+                    auto leClass = g_Image->getClass("LootEngine");
+                    leClass->invoke_static_method<void>("SpawnCurrency", playerPos, 10, 1); // FIXME: Still doesn't work
+                    //auto spawnCurrencyMethod = leClass->getMethod("SpawnCurrency", 3);
+
+                    //if (spawnCurrencyMethod != nullptr) {
+                    //    spawnCurrencyMethod->invoke_static<void>(playerPos,
+                    //                                             10,
+                    //                                             1); // true
+                    //} else {
+                        //LOGE("Failed to find SpawnCurrency method!");
+                    //}
+                } else {
+                    LOGE("playerPos is null!");
+                }
+            } else {
+                LOGE("playerCtrlClass or cameraCtrlClass is null!");
+            }
+            spawnCurrency = false;
+        }
+//        if (addBlanks) {
+//            if (playerCtrlClass != nullptr) {
+//                playerCtrlClass->setField("Blanks", 15);
+//            } else {
+//                LOGE("playerCtrlClass is null!");
+//            }
+//
+//            addBlanks = false;
+//        }
+
         return instance->invoke_method<void>("Update");
 
     }
@@ -183,7 +285,7 @@ void WikiUpdate(Il2CppObject *instance) {
 
 void AmmonomiconLateUpdate(Il2CppObject *instance) {
     if (initAmmonomicon) {
-        
+
         LOGD("PrecacheAllData");
 
         instance->invoke_method<void>("PrecacheAllData");
@@ -197,7 +299,7 @@ void InitSDK(Il2CppObject *instance, Il2CppObject *callback) {
     instance->invoke_method<void>("disableAgreementUI");
 
     return instance->invoke_method<void>("InitSDK", callback);
-} 
+}
 
 /*
 void DoGameOver(Il2CppObject *instance, Il2CppObject *gameOverSource) {
@@ -205,20 +307,48 @@ void DoGameOver(Il2CppObject *instance, Il2CppObject *gameOverSource) {
     returnToFoyer = true;
 }
 */
-void (*o_Class_ctor)(Il2CppObject *);
-void Class_ctor(Il2CppObject *instance)
+void (*o_Class_GameMain_ProcedureOfflineContinue_ctor)(Il2CppObject *);
+void Class_GameMain_ProcedureOfflineContinue_ctor(Il2CppObject *instance)
 {
-    o_Class_ctor(instance);
+    o_Class_GameMain_ProcedureOfflineContinue_ctor(instance);
     proOfflineCont = instance;
 }
 
+void (*o_Class_PlayerController_ctor)(Il2CppObject *);
+void Class_PlayerController_ctor(Il2CppObject *instance)
+{
+    o_Class_PlayerController_ctor(instance);
+    playerCtrlClass = instance;
+}
+
+void (*o_Class_CameraController_ctor)(Il2CppObject *);
+void Class_CameraController_ctor(Il2CppObject *instance)
+{
+    o_Class_CameraController_ctor(instance);
+    cameraCtrlClass = instance;
+}
+
+//void (*o_Class_PlayerConsumables_ctor)(Il2CppObject *);
+//void Class_PlayerConsumables_ctor(Il2CppObject *instance)
+//{
+//    o_Class_PlayerConsumables_ctor(instance);
+//    playerConsClass = instance;
+//}
+
+void CurrencyPickup_Update(Il2CppObject *instance)
+{
+    if (currencyPickupModded) {
+        instance->setField("currencyValue", 999);
+    }
+    instance->invoke_method<void>("Update");
+}
 
 void DoEnableAll(Il2CppObject *instance) {
     LOGD("Enable All Stuff");
     instance->invoke_method<void>("OnBtnContinueClick");
     instance->invoke_method<void>("OnBtnLeaveClick");
     instance->invoke_method<void>("OnBtnLeaveClick");
-    enterMainScene = true;
+    charSelect = true;
 
 }
 
@@ -270,7 +400,7 @@ Il2CppObject* FindProcedureOfflineContinue() {
 */
 
 /*
-void Class_set_Position(Il2CppObject *instance, UnityEngine_Vector3 pos)
+void Class_set_Position(Il2CppObject *instance, Vector3 pos)
 {
     LOGD("set_Position: %f, %f, %f", pos.x, pos.y, pos.z);
     pos.x += 1;
@@ -279,10 +409,10 @@ void Class_set_Position(Il2CppObject *instance, UnityEngine_Vector3 pos)
 
 
 
-void (*o_Class_ctor)(Il2CppObject *);
-void Class_ctor(Il2CppObject *instance)
+void (*o_Class_GameMain_ProcedureOfflineContinue_ctor)(Il2CppObject *);
+void Class_GameMain_ProcedureOfflineContinue_ctor(Il2CppObject *instance)
 {
-    o_Class_ctor(instance);
+    o_Class_GameMain_ProcedureOfflineContinue_ctor(instance);
     auto id = instance->getField<int32_t>("Id");
     LOGINT(id);
     instance->setField("BuffType", 2);
@@ -294,6 +424,7 @@ void SubClass_SampleMethod(Il2CppObject *instance)
     return instance->invoke_method<void>("SampleMethod");
 }
 */
+
 // we will run our hacks in a new thread so our while loop doesn't block process main thread
 void *hack_thread(void *)
 {
@@ -315,7 +446,6 @@ void *hack_thread(void *)
     XDSDK = Il2cpp::GetAssembly("XDSDK.Runtime")->getImage();
     runTime = Il2cpp::GetAssembly("XD.SDK.Common.Mobile.Runtime")->getImage();
     //unityCore = Il2cpp::GetAssembly("UnityEngine.CoreModule")->getImage();
-    //msCore = Il2cpp::GetAssembly("mscorlib")->getImage();
 
     // // HOOKS
     REPLACE_NAME("GameManager", "Update", GameManager_Update);
@@ -323,7 +453,11 @@ void *hack_thread(void *)
 //    REPLACE_NAME("PauseMenuController", "DoShowBestiary", DoShowBestiary);
 //    REPLACE_NAME("GameManager", "DoGameOver", DoGameOver);
     REPLACE_NAME("SettingService", "get_SettingData", getSettingData);
-    REPLACE_NAME_ORIG("GameMain.ProcedureOfflineContinue", ".ctor", Class_ctor, o_Class_ctor);
+    REPLACE_NAME_ORIG("GameMain.ProcedureOfflineContinue", ".ctor", Class_GameMain_ProcedureOfflineContinue_ctor, o_Class_GameMain_ProcedureOfflineContinue_ctor);
+    REPLACE_NAME_ORIG("PlayerController", ".ctor", Class_PlayerController_ctor, o_Class_PlayerController_ctor);
+    REPLACE_NAME_ORIG("CameraController", ".ctor", Class_CameraController_ctor, o_Class_CameraController_ctor);
+//    REPLACE_NAME_ORIG("PlayerConsumables", ".ctor", Class_PlayerConsumables_ctor, o_Class_PlayerConsumables_ctor);
+    REPLACE_NAME("CurrencyPickup", "Update", CurrencyPickup_Update);
     REPLACE_NAME("UIContinueConfirmWindow", "OnBtnLeaveClick", DoEnableAll);
     REPLACE_NAME("AmmonomiconController", "LateUpdate", AmmonomiconLateUpdate);
     REPLACE_NAME_KLASS(XDSDK->getClass(OBFUSCATE("XDSDKAgent.SDKEntry")), "IsConnectedInternet", IsConnectedInternet);
@@ -331,7 +465,7 @@ void *hack_thread(void *)
 
 //    REPLACE_NAME("UIUniWebView", "Update", WikiUpdate);
 
-    //REPLACE_NAME_ORIG("Game.Sample.Class", ".ctor", Class_ctor, o_Class_ctor);
+    //REPLACE_NAME_ORIG("Game.Sample.Class", ".ctor", Class_GameMain_ProcedureOfflineContinue_ctor, o_Class_GameMain_ProcedureOfflineContinue_ctor);
 
     // // HOOK SUBCLASS
     // auto SubClass = g_Image->getClass("Game.Sample.Class.SubClass", 1);
@@ -352,15 +486,35 @@ jobjectArray GetFeatureList(JNIEnv *env, [[maybe_unused]] jobject context)
 
 
     const char *features[] = {
-        OBFUSCATE("Button_Enter The Breach"),
-        OBFUSCATE("Button_Fix Screen Bugs"),
-        OBFUSCATE("Button_Enable Cult of the Lamb Event"),
-        OBFUSCATE("SeekBar_Camera Scale_1_3"),
-        OBFUSCATE("Button_Enable Cultist"),
-        OBFUSCATE("Button_Try Load Autosave"),
-        OBFUSCATE("Button_Save Mid Game"),
-        OBFUSCATE("Button_Enable All Characters"),
-        OBFUSCATE("Button_Load Character Select")};
+        OBFUSCATE("Category_General"),
+
+        OBFUSCATE("Button_Enter The Breach"), // 0
+        OBFUSCATE("Button_Fix Screen Bugs"), // 1
+        OBFUSCATE("Button_Load Character Select"), // 2
+        OBFUSCATE("SeekBar_Camera Scale_1_3"), // 3
+        OBFUSCATE("Button_Try Load Autosave"), // 4
+        OBFUSCATE("Button_Save Mid Game"), // 5
+        OBFUSCATE("Button_Quick Restart"), // 6
+
+        OBFUSCATE("Category_Content"),
+
+        OBFUSCATE("Button_Enable Cult of the Lamb Event"), // 7
+        OBFUSCATE("Button_Enable All Characters"), // 8
+        OBFUSCATE("Button_Enable Cultist"), // 9
+
+        OBFUSCATE("Collapse_Extras"),
+
+        OBFUSCATE("CollapseAdd_Category_Shells / Credits"),
+
+        OBFUSCATE("CollapseAdd_Button_Spawn Currency"), // 10
+        OBFUSCATE("CollapseAdd_InputValue_Amount To Drop"), // 11
+        OBFUSCATE("CollapseAdd_Toggle_Meta Currency?"), // 12
+
+        OBFUSCATE("CollapseAdd_Category_Other Consumables"),
+        OBFUSCATE("CollapseAdd_Category_Testing"),
+        OBFUSCATE("CollapseAdd_Toggle_Spawn Modded Currency (999 value)"), // 13
+//        OBFUSCATE("CollapseAdd_Button_Set Blanks to 15") // 14
+    };
 
     // Now you dont have to manually update the number everytime;
     int Total_Feature = (sizeof features / sizeof features[0]);
@@ -396,12 +550,12 @@ void Changes(JNIEnv *env, [[maybe_unused]] jclass clazz, [[maybe_unused]] jobjec
             forceUnpause = true;
             enterMainScene = true;
             enableEnglish = true;
-
             break;
         }
         case 2:
         {
-            enableSheep = true;
+            charSelect = true;
+            enableEnglish = true;
             break;
         }
         case 3:
@@ -410,41 +564,65 @@ void Changes(JNIEnv *env, [[maybe_unused]] jclass clazz, [[maybe_unused]] jobjec
             setCamScale = true;
             break;
         }
-        case 4: 
-        {
-            enableCultist = true;
-            enableEnglish = true;
-
-           
-            break;
-
-        }
-        case 5:
+        case 4:
         {
             loadSave = true;
             enableEnglish = true;
-
             break;
         }
-        case 6: 
+        case 5:
         {
             saveGame = true;
             enableEnglish = true;
             break;
         }
+        case 6:
+        {
+            quickRestart = true;
+            break;
+        }
         case 7:
         {
-            enableAll = true;
-            enableEnglish = true;
-
+            enableSheep = true;
             break;
         }
         case 8:
         {
-            charSelect = true;
+            enableAll = true;
             enableEnglish = true;
             break;
         }
+        case 9:
+        {
+            enableCultist = true;
+            enableEnglish = true;
+            break;
+        }
+        case 10:
+        {
+            spawnCurrency = true;
+            break;
+        }
+        case 11:
+        {
+            currencyAmountToDrop = value;
+            break;
+        }
+        case 12:
+        {
+            isMetaCurrency = boolean;
+            break;
+        }
+        case 13:
+        {
+            currencyPickupModded = boolean;
+            break;
+        }
+//        case 14:
+//        {
+//            addBlanks = true;
+//            break;
+//        }
     }
 }
 
